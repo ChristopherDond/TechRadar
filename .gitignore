@@ -1,0 +1,16 @@
+# Ambiente Virtual (você já colocou, mas é bom garantir)
+venv/
+
+# Cache do Python (arquivos temporários que ele cria ao rodar)
+__pycache__/
+*.pyc
+
+# Segurança: NUNCA suba arquivos com chaves, tokens ou senhas
+.env
+
+# Streamlit/Configurações locais
+.streamlit/
+secrets.toml
+
+# Dados (opcional, mas recomendado se o CSV for muito grande)
+vagas_reais.csv
