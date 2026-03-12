@@ -580,6 +580,8 @@ with tab4:
             .agg(vagas=("linguagem","count"), salario_medio=("salario","mean"), dispersao=("salario","std"))
             .reset_index()
         )
+# Garante que não há NaN ou zero no tamanho
+        bubble_data["dispersao"] = bubble_data["dispersao"].fillna(500).clip(lower=200)
 
         fig_bubble = px.scatter(
             bubble_data,
