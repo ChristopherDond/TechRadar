@@ -1,8 +1,3 @@
-"""
-scraper.py — Coleta vagas reais do Gupy (API v1 corrigida)
-Execute: python scraper.py
-"""
-
 import requests
 import pandas as pd
 import time

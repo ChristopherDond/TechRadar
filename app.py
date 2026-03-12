@@ -13,7 +13,6 @@ import io
 import base64
 from database import fetch_all_vagas, get_stats
 
-# ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="TechRadar · Mercado Dev Brasil",
     page_icon="📡",
@@ -21,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── CUSTOM CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -174,7 +172,6 @@ hr {
 </style>
 """, unsafe_allow_html=True)
 
-# ─── PLOTLY TEMPLATE ─────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="#111827",
     plot_bgcolor="#0f172a",
@@ -188,7 +185,6 @@ PLOTLY_LAYOUT = dict(
 
 COLOR_SEQ = ["#00d4ff","#7c3aed","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#84cc16","#ec4899","#f97316","#14b8a6","#a855f7"]
 
-# ─── DATA ────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=3600)
 def load_data():
     return fetch_all_vagas()
@@ -196,7 +192,6 @@ def load_data():
 df_full = load_data()
 db_stats = get_stats()
 
-# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 📡 TechRadar")
     fonte = db_stats.get("fonte", "sintético")
@@ -248,7 +243,6 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# ─── FILTER DATA ─────────────────────────────────────────────────────────────
 df = df_full[
     df_full["linguagem"].isin(sel_langs) &
     df_full["nivel"].isin(sel_levels) &
@@ -256,7 +250,6 @@ df = df_full[
     df_full["salario"].between(sal_range[0], sal_range[1])
 ].copy()
 
-# ─── HEADER ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="padding: 24px 0 16px 0;">
     <h1 style="font-size:2.4rem; font-weight:700; margin:0; background: linear-gradient(90deg, #00d4ff, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
@@ -272,7 +265,6 @@ if df.empty:
     st.warning("Nenhum resultado para os filtros selecionados.")
     st.stop()
 
-# ─── KPI METRICS ─────────────────────────────────────────────────────────────
 k1, k2, k3, k4, k5 = st.columns(5)
 
 with k1:
@@ -299,15 +291,11 @@ with k5:
 
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
-# ─── TABS ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Salários", "🔥 Demanda", "☁️ Skills", "🔬 Análise Cruzada",
     "🎯 Score de Empregabilidade", "⚔️ Comparador de Stacks"
 ])
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — SALÁRIOS
-# ══════════════════════════════════════════════════════════════════════════════
 with tab1:
     c1, c2 = st.columns([3, 2])
 
@@ -392,9 +380,6 @@ with tab1:
     fig3.update_layout(**PLOTLY_LAYOUT, height=350, xaxis_title="Nível", yaxis_title="Salário Médio (R$)")
     st.plotly_chart(fig3, use_container_width=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — DEMANDA
-# ══════════════════════════════════════════════════════════════════════════════
 with tab2:
     c1, c2 = st.columns([2, 2])
 
@@ -467,9 +452,6 @@ with tab2:
         fig7.update_traces(textposition="inside", textfont=dict(family="JetBrains Mono", size=10))
         st.plotly_chart(fig7, use_container_width=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — WORD CLOUD
-# ══════════════════════════════════════════════════════════════════════════════
 with tab3:
     st.markdown("#### ☁️ Habilidades Mais Pedidas no Mercado")
 
@@ -540,9 +522,6 @@ with tab3:
         st.pyplot(fig_wc2, use_container_width=True)
         plt.close()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — ANÁLISE CRUZADA
-# ══════════════════════════════════════════════════════════════════════════════
 with tab4:
     st.markdown("#### 🔬 Análise Multidimensional")
 
@@ -580,7 +559,7 @@ with tab4:
             .agg(vagas=("linguagem","count"), salario_medio=("salario","mean"), dispersao=("salario","std"))
             .reset_index()
         )
-# Garante que não há NaN ou zero no tamanho
+
         bubble_data["dispersao"] = bubble_data["dispersao"].fillna(500).clip(lower=200)
 
         fig_bubble = px.scatter(
@@ -658,9 +637,6 @@ with tab4:
         }
     )
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — SCORE DE EMPREGABILIDADE
-# ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     st.markdown("#### 🎯 Score de Empregabilidade")
     st.markdown(
@@ -669,7 +645,6 @@ with tab5:
         unsafe_allow_html=True
     )
 
-    # ── Coleta de input ──────────────────────────────────────────────────────
     col_input, col_result = st.columns([2, 3])
 
     with col_input:
@@ -703,7 +678,6 @@ with tab5:
 
         calcular = st.button("🔍 Calcular Score", type="primary")
 
-    # ── Cálculo ──────────────────────────────────────────────────────────────
     with col_result:
         if calcular and user_skills:
             user_set = set(s.lower() for s in user_skills)
@@ -814,9 +788,6 @@ with tab5:
             """, unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — COMPARADOR DE STACKS
-# ══════════════════════════════════════════════════════════════════════════════
 with tab6:
     st.markdown("#### ⚔️ Comparador de Stacks")
     st.markdown(
@@ -847,7 +818,6 @@ with tab6:
         df_a = df_full[(df_full["linguagem"] == lang_a) & (df_full["nivel"] == nivel_comp)]
         df_b = df_full[(df_full["linguagem"] == lang_b) & (df_full["nivel"] == nivel_comp)]
 
-        # ── Métricas principais ─────────────────────────────────────────────
         sal_a = df_a["salario"].mean() if not df_a.empty else 0
         sal_b = df_b["salario"].mean() if not df_b.empty else 0
         ganho = sal_b - sal_a
@@ -885,7 +855,6 @@ with tab6:
 
         st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-        # ── Comparativo visual ─────────────────────────────────────────────
         g1, g2 = st.columns(2)
 
         with g1:
@@ -930,7 +899,6 @@ with tab6:
                                   xaxis_title="", yaxis_title="Vagas")
             st.plotly_chart(fig_mod, use_container_width=True)
 
-        # ── Skills exclusivas e compartilhadas ─────────────────────────────
         st.markdown("##### 🧬 Análise de Skills")
 
         skills_a = Counter(
@@ -962,7 +930,6 @@ with tab6:
             for s in list(so_b)[:8]:
                 st.markdown(f"<span class='tag' style='color:#7c3aed'>{s}</span>", unsafe_allow_html=True)
 
-        # ── Veredicto final ────────────────────────────────────────────────
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
         demanda_a = len(df_full[df_full["linguagem"] == lang_a])

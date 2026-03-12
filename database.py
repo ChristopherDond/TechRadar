@@ -1,7 +1,3 @@
-"""
-database.py — Camada de integração com Supabase
-"""
-
 import os
 import pandas as pd
 from dotenv import load_dotenv
@@ -9,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def _get_env(key: str) -> str:
-    """Lê variável de .env local ou de secrets do Streamlit Cloud."""
+
     value = os.getenv(key, "")
     if not value:
         try:
@@ -25,7 +21,7 @@ TABLE = "vagas"
 
 
 def get_client():
-    """Retorna cliente Supabase autenticado."""
+
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError(
             "❌ Variáveis SUPABASE_URL e SUPABASE_KEY não configuradas.\n"
@@ -36,17 +32,12 @@ def get_client():
 
 
 def upsert_vagas(df: pd.DataFrame) -> int:
-    """
-    Insere ou atualiza vagas no Supabase.
-    Usa 'url' como chave de upsert para evitar duplicatas.
-    Retorna o número de registros processados.
-    """
+
     client = get_client()
 
     cols = ["cargo", "empresa", "linguagem", "nivel", "salario",
             "modalidade", "skills", "cidade", "url", "fonte", "coletado_em"]
 
-    # Garante que só colunas existentes são enviadas
     cols_to_send = [c for c in cols if c in df.columns]
     records = df[cols_to_send].to_dict("records")
 
@@ -72,11 +63,7 @@ def fetch_vagas(
     sal_min: int = 0,
     sal_max: int = 999999,
 ) -> pd.DataFrame:
-    """
-    Busca vagas do Supabase com filtros opcionais.
-    Fallback para CSV local se Supabase não estiver configurado.
-    """
-    # Fallback: sem Supabase configurado, usa CSV ou gerador
+
     if not SUPABASE_URL or not SUPABASE_KEY:
         return _fallback_data()
 
@@ -111,7 +98,7 @@ def fetch_vagas(
 
 
 def fetch_all_vagas() -> pd.DataFrame:
-    """Busca todas as vagas sem filtros (para cache do Streamlit)."""
+
     if not SUPABASE_URL or not SUPABASE_KEY:
         return _fallback_data()
 
@@ -126,7 +113,7 @@ def fetch_all_vagas() -> pd.DataFrame:
 
 
 def _fallback_data() -> pd.DataFrame:
-    """Usa CSV local se existir, senão gera dados sintéticos."""
+
     import os
     if os.path.exists("vagas_reais.csv"):
         print("📂 Usando vagas_reais.csv")
@@ -138,7 +125,7 @@ def _fallback_data() -> pd.DataFrame:
 
 
 def get_stats() -> dict:
-    """Retorna estatísticas rápidas da tabela."""
+
     if not SUPABASE_URL or not SUPABASE_KEY:
         return {"total": 0, "fonte": "sintético", "ultima_coleta": "N/A"}
 
