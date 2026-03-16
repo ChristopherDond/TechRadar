@@ -11,7 +11,9 @@ matplotlib.use("Agg")
 from collections import Counter
 import io
 import base64
+import json
 from database import fetch_all_vagas, get_stats
+from new_tabs import render_trends_tab, render_resume_tab, render_tracker_tab
 
 st.set_page_config(
     page_title="TechRadar · Mercado Dev Brasil",
@@ -291,9 +293,10 @@ with k5:
 
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📊 Salários", "🔥 Demanda", "☁️ Skills", "🔬 Análise Cruzada",
-    "🎯 Score de Empregabilidade", "⚔️ Comparador de Stacks"
+    "🎯 Empregabilidade", "⚔️ Comparador",
+    "📈 Tendências", "📄 Currículo", "📋 Job Tracker"
 ])
 
 with tab1:
@@ -707,7 +710,6 @@ with tab5:
             sal_esperado = vagas_compativeis["salario"].mean() if not vagas_compativeis.empty else 0
             sal_nivel_geral = df_full[df_full["nivel"] == user_nivel]["salario"].mean()
 
-            # Score gauge
             cor_score = "#10b981" if score_geral >= 60 else "#f59e0b" if score_geral >= 30 else "#ef4444"
             st.markdown(f"""
             <div style="background:#111827;border:1px solid #1e2d45;border-radius:14px;padding:24px;text-align:center;margin-bottom:16px">
@@ -729,7 +731,6 @@ with tab5:
                 st.metric("🎯 Vagas Compatíveis", f"{n_compativeis:,}",
                           delta=f"de {total_vagas:,} para {user_nivel}")
 
-            # Skills que faltam
             st.markdown("##### 📚 Skills para aumentar seu score")
 
             todas_skills_vagas = Counter()
@@ -760,7 +761,6 @@ with tab5:
                 fig_falta.update_traces(textposition="inside", textfont=dict(family="JetBrains Mono", size=10))
                 st.plotly_chart(fig_falta, use_container_width=True)
 
-            # Top vagas mais compatíveis
             if not vagas_compativeis.empty:
                 st.markdown("##### 🏆 Suas vagas mais compatíveis")
                 top_vagas = vagas_compativeis.nlargest(5, "match_pct")[
@@ -964,3 +964,12 @@ with tab6:
             </span>
         </div>
         """, unsafe_allow_html=True)
+
+with tab7:
+    render_trends_tab(df, PLOTLY_LAYOUT)
+
+with tab8:
+    render_resume_tab(df_full, PLOTLY_LAYOUT)
+
+with tab9:
+    render_tracker_tab()
