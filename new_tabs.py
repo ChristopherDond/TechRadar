@@ -207,15 +207,11 @@ def render_resume_tab(df_full, PLOTLY_LAYOUT):
                     text="Vagas",
                 )
                 fig_f.update_layout(
-                    **PLOTLY_LAYOUT, height=320, showlegend=False,
-                    coloraxis_showscale=False,
-                    yaxis={"categoryorder": "total ascending"},
-                    margin=dict(l=10, r=10, t=10, b=10),
+                **PLOTLY_LAYOUT, height=320, showlegend=False,
+                coloraxis_showscale=False,
+                margin=dict(l=10, r=10, t=10, b=10),
                 )
-                fig_f.update_traces(
-                    textposition="inside",
-                    textfont=dict(family="JetBrains Mono", size=10),
-                )
+                fig_f.update_yaxes(categoryorder="total ascending")
                 st.plotly_chart(fig_f, use_container_width=True)
 
             if result["lang_compatibility"]:
