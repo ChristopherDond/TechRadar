@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
 from resume_analyzer import analyze_resume
+from app_features import load_tracker, save_tracker, default_tracker_state
 from market_trends import (
     calculate_market_trends,
     get_salary_percentiles,
@@ -253,7 +254,7 @@ def render_resume_tab(df_full, PLOTLY_LAYOUT):
             """, unsafe_allow_html=True)
 
 
-def render_tracker_tab():
+def render_tracker_tab(tracker_path: str):
 
     st.markdown("#### 📋 Job Tracker")
     st.markdown(
@@ -263,13 +264,9 @@ def render_tracker_tab():
     )
 
     if "job_tracker" not in st.session_state:
-        st.session_state.job_tracker = {
-            "🔍 Interesse": [],
-            "📤 Aplicado": [],
-            "💬 Entrevista": [],
-            "✅ Aprovado": [],
-            "❌ Recusado": [],
-        }
+        st.session_state.job_tracker = load_tracker(tracker_path)
+        if not st.session_state.job_tracker:
+            st.session_state.job_tracker = default_tracker_state()
 
     st.markdown("##### ➕ Adicionar Vaga")
     jt1, jt2, jt3, jt4 = st.columns([3, 2, 2, 1])
@@ -294,6 +291,7 @@ def render_tracker_tab():
                     "empresa": new_empresa or "—",
                     "salario": new_salario or "—",
                 })
+                save_tracker(tracker_path, st.session_state.job_tracker)
                 st.rerun()
 
     st.markdown("---")
@@ -335,6 +333,7 @@ def render_tracker_tab():
                                      help=f"Mover para {stages[idx-1]}"):
                             item = st.session_state.job_tracker[stage].pop(i)
                             st.session_state.job_tracker[stages[idx-1]].append(item)
+                            save_tracker(tracker_path, st.session_state.job_tracker)
                             st.rerun()
                 if idx < len(stages) - 1:
                     with move_cols[1]:
@@ -342,6 +341,7 @@ def render_tracker_tab():
                                      help=f"Mover para {stages[idx+1]}"):
                             item = st.session_state.job_tracker[stage].pop(i)
                             st.session_state.job_tracker[stages[idx+1]].append(item)
+                            save_tracker(tracker_path, st.session_state.job_tracker)
                             st.rerun()
 
     total_tracked = sum(len(v) for v in st.session_state.job_tracker.values())
@@ -364,4 +364,5 @@ def render_tracker_tab():
         if st.button("🗑️ Limpar Tracker", key="clear_tracker"):
             for key in st.session_state.job_tracker:
                 st.session_state.job_tracker[key] = []
+            save_tracker(tracker_path, st.session_state.job_tracker)
             st.rerun()

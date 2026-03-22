@@ -4,8 +4,12 @@ import re
 import time
 import random
 import sys
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from bs4 import BeautifulSoup
+from requests import RequestException
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from database import upsert_vagas
 
 HEADERS_JSON = {
@@ -55,24 +59,6 @@ QUERIES_SHORT = [
 LEVEL_KEYWORDS = {
     "Especialista": [
         ("especialista", 10), ("lead", 9), ("principal", 9), ("staff", 9),
-        ("tech lead", 10), ("arquiteto", 8), ("architect", 8), ("head", 7),
-    ],
-    "Seniot": [
-        ("seniot", 10), ("senior", 10), ("sr.", 9), ("sr ", 9), ("experiente", 5),
-    ],
-    "Pleno": [
-        ("pleno", 10), ("mid", 8), ("middle", 8), ("mid-level", 9),
-        ("intermediario", 8),
-    ],
-    "Junior": [
-        ("junior", 10), ("jr.", 9), ("jr ", 9),
-        ("trainee", 9), ("estagio", 8), ("intern", 9), ("aprendiz", 8),
-    ],
-}
-
-LEVEL_KEYWORDS = {
-    "Especialista": [
-        ("especialista", 10), ("lead", 9), ("principal", 9), ("staff", 9),
         ("tech lead", 10), ("arquiteto", 8), ("head", 7),
     ],
     "Sênior": [
@@ -87,6 +73,44 @@ LEVEL_KEYWORDS = {
         ("trainee", 9), ("estágio", 8), ("estagio", 8), ("intern", 9),
     ],
 }
+
+SOURCE_TIMEOUTS = {
+    "gupy": 15,
+    "programathor": 20,
+    "indeed": 20,
+    "catho": 20,
+}
+
+logger = logging.getLogger("techradar.scraper")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+
+def _log(event: str, level: str = "info", **context):
+    ctx = " ".join(f"{k}={v}" for k, v in context.items())
+    getattr(logger, level)(f"{event} {ctx}".strip())
+
+
+def _build_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        backoff_factor=0.7,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
+SESSION = _build_session()
 
 SKILLS_KEYWORDS = {
     "Python", "JavaScript", "TypeScript", "Java", "Go", "Kotlin", "C#", "PHP",
@@ -122,10 +146,96 @@ SALARY_PATTERNS = [
 
 
 def _parse_brl(s):
+    cleaned = str(s).replace(".", "").replace(",", ".")
+    return float(cleaned)
+
+
+def normalize_level(level: str) -> str:
+    value = (level or "").strip().lower()
+    mapping = {
+        "junior": "Junior",
+        "júnior": "Junior",
+        "jr": "Junior",
+        "pleno": "Pleno",
+        "senior": "Sênior",
+        "sênior": "Sênior",
+        "sr": "Sênior",
+        "seniot": "Sênior",
+        "especialista": "Especialista",
+        "lead": "Especialista",
+        "principal": "Especialista",
+        "staff": "Especialista",
+    }
+    return mapping.get(value, "Pleno")
+
+
+def normalize_modalidade(mod: str) -> str:
+    value = (mod or "").strip().lower()
+    if value in {"remote", "remoto", "home office"}:
+        return "Remoto"
+    if value in {"hybrid", "hibrido", "híbrido"}:
+        return "Híbrido"
+    if value in {"on-site", "onsite", "presencial"}:
+        return "Presencial"
+    return "Híbrido"
+
+
+def normalize_skills(skills: str) -> str:
+    if not isinstance(skills, str):
+        return "Git, SQL"
+    parts = [p.strip() for p in skills.split(",") if p.strip()]
+    dedup = list(dict.fromkeys(parts))
+    return ", ".join(dedup) if dedup else "Git, SQL"
+
+
+def normalize_row(row: dict) -> dict:
+    salary_raw = row.get("salario", 0)
     try:
-        return float(s.replace(".", "").replace(",", "."))
-    except Exception:
-        return 0.0
+        salary = int(float(salary_raw))
+    except (TypeError, ValueError):
+        salary = 0
+
+    normalized = {
+        "cargo": str(row.get("cargo", "N/A"))[:120],
+        "empresa": str(row.get("empresa", "N/A"))[:100],
+        "linguagem": str(row.get("linguagem", "N/A"))[:50],
+        "nivel": normalize_level(str(row.get("nivel", "Pleno"))),
+        "salario": max(salary, 0),
+        "modalidade": normalize_modalidade(str(row.get("modalidade", "Híbrido"))),
+        "skills": normalize_skills(row.get("skills", "")),
+        "cidade": str(row.get("cidade", "Brasil"))[:100],
+        "url": str(row.get("url", "")).strip(),
+        "fonte": str(row.get("fonte", "unknown")).strip(),
+        "coletado_em": str(row.get("coletado_em", datetime.now(timezone.utc).replace(microsecond=0).isoformat())),
+    }
+    return normalized
+
+
+def deduplicate_rows(rows: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for row in rows:
+        normalized = normalize_row(row)
+        key = (
+            normalized["url"].lower(),
+            normalized["empresa"].lower(),
+            normalized["cargo"].lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(normalized)
+    return out
+
+
+def _request(url: str, *, source: str, headers: dict, params=None, timeout=15):
+    try:
+        response = SESSION.get(url, params=params, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response
+    except RequestException as exc:
+        _log("request_failed", level="warning", source=source, error=type(exc).__name__, url=url)
+        return None
 
 
 def extract_salary(text, nivel):
@@ -135,14 +245,20 @@ def extract_salary(text, nivel):
             if m:
                 g = m.groups()
                 if len(g) >= 2:
-                    lo, hi = _parse_brl(g[0]), _parse_brl(g[1])
+                    try:
+                        lo, hi = _parse_brl(g[0]), _parse_brl(g[1])
+                    except ValueError:
+                        continue
                     if lo > 500 and hi > 500:
                         return int((lo + hi) / 2)
                 elif len(g) == 1:
-                    v = _parse_brl(g[0])
+                    try:
+                        v = _parse_brl(g[0])
+                    except ValueError:
+                        continue
                     if v > 500:
                         return int(v)
-    median = SAL_REFERENCE.get(nivel, SAL_REFERENCE["Pleno"])["median"]
+    median = SAL_REFERENCE.get(normalize_level(nivel), SAL_REFERENCE["Pleno"])["median"]
     return int(median * random.uniform(0.85, 1.15))
 
 
@@ -154,7 +270,7 @@ def detect_level(text):
             if keyword in text_lower:
                 scores[level] += weight
     best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "Pleno"
+    return normalize_level(best if scores[best] > 0 else "Pleno")
 
 
 def extract_skills(text):
@@ -166,31 +282,35 @@ def extract_skills(text):
 
 
 def _row(cargo, empresa, linguagem, nivel, salario, modalidade, skills, cidade, url, fonte):
-    return {
+    row = {
         "cargo": str(cargo)[:120],
         "empresa": str(empresa)[:100],
         "linguagem": linguagem,
-        "nivel": nivel,
+        "nivel": normalize_level(nivel),
         "salario": salario,
-        "modalidade": modalidade,
-        "skills": skills,
+        "modalidade": normalize_modalidade(modalidade),
+        "skills": normalize_skills(skills),
         "cidade": str(cidade)[:100],
         "url": str(url),
         "fonte": fonte,
-        "coletado_em": datetime.utcnow().isoformat(),
+        "coletado_em": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
     }
+    return normalize_row(row)
 
 def _gupy_page(query, offset=0):
+    r = _request(
+        "https://portal.api.gupy.io/api/v1/jobs",
+        source="gupy",
+        params={"jobName": query, "limit": 10, "offset": offset},
+        headers=HEADERS_JSON,
+        timeout=SOURCE_TIMEOUTS["gupy"],
+    )
+    if not r:
+        return {}
     try:
-        r = requests.get(
-            "https://portal.api.gupy.io/api/v1/jobs",
-            params={"jobName": query, "limit": 10, "offset": offset},
-            headers=HEADERS_JSON, timeout=15
-        )
-        r.raise_for_status()
         return r.json()
-    except Exception as e:
-        print(f"    gupy err: {e}")
+    except ValueError:
+        _log("json_decode_failed", level="warning", source="gupy", query=query, offset=offset)
         return {}
 
 
@@ -281,13 +401,16 @@ PT_SLUGS = [
 
 
 def _pt_fetch(slug, page=1):
-    try:
-        r = requests.get(f"{PT_BASE}{slug}?page={page}", headers=HEADERS_HTML, timeout=15)
-        r.raise_for_status()
-        return BeautifulSoup(r.text, "html.parser")
-    except Exception as e:
-        print(f"    programathor err ({slug}): {e}")
+    r = _request(
+        f"{PT_BASE}{slug}",
+        source="programathor",
+        params={"page": page},
+        headers=HEADERS_HTML,
+        timeout=SOURCE_TIMEOUTS["programathor"],
+    )
+    if not r:
         return None
+    return BeautifulSoup(r.text, "html.parser")
 
 
 def _pt_parse(card, linguagem):
@@ -361,17 +484,16 @@ INDEED_BASE = "https://br.indeed.com"
 
 
 def _indeed_fetch(query, start=0):
-    try:
-        r = requests.get(
-            f"{INDEED_BASE}/jobs",
-            params={"q": query, "l": "Brasil", "start": start},
-            headers=HEADERS_HTML, timeout=15
-        )
-        r.raise_for_status()
-        return BeautifulSoup(r.text, "lxml")
-    except Exception as e:
-        print(f"    indeed err ('{query}'): {e}")
+    r = _request(
+        f"{INDEED_BASE}/jobs",
+        source="indeed",
+        params={"q": query, "l": "Brasil", "start": start},
+        headers=HEADERS_HTML,
+        timeout=SOURCE_TIMEOUTS["indeed"],
+    )
+    if not r:
         return None
+    return BeautifulSoup(r.text, "lxml")
 
 
 def _indeed_parse(card, linguagem):
@@ -425,8 +547,13 @@ def scrape_indeed(max_pages=3):
             print(f"     → '{q}'")
             try:
                 url = f"https://www.catho.com.br/vagas/{q.replace(' ', '-')}/"
-                r = requests.get(url, headers=HEADERS_HTML, timeout=15)
-                if r.status_code != 200:
+                r = _request(
+                    url,
+                    source="catho",
+                    headers=HEADERS_HTML,
+                    timeout=SOURCE_TIMEOUTS["catho"],
+                )
+                if not r:
                     continue
                 soup = BeautifulSoup(r.text, "html.parser")
                 cards = (
@@ -451,8 +578,9 @@ def scrape_indeed(max_pages=3):
                                      "Híbrido", extract_skills(full_text),
                                      "Brasil", url_vaga, "catho"))
                 time.sleep(1.5 + random.uniform(0, 0.5))
-            except Exception as e:
+            except (AttributeError, ValueError) as e:
                 print(f"    catho err: {e}")
+                _log("parse_failed", level="warning", source="catho", query=q, error=type(e).__name__)
         if lang:
             uniq = pd.DataFrame(lang).drop_duplicates(subset=["url"])
             rows.extend(uniq.to_dict("records"))
@@ -489,7 +617,8 @@ def scrape_all(sources=None):
     if not all_rows:
         return pd.DataFrame()
 
-    df = pd.DataFrame(all_rows).drop_duplicates(subset=["url"]).reset_index(drop=True)
+    cleaned_rows = deduplicate_rows(all_rows)
+    df = pd.DataFrame(cleaned_rows).reset_index(drop=True)
 
     print(f"\n📊 Total consolidado: {len(df)} vagas únicas")
     for fonte, count in df["fonte"].value_counts().items():

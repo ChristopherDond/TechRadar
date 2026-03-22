@@ -12,8 +12,10 @@ from collections import Counter
 import io
 import base64
 import json
+from pathlib import Path
 from database import fetch_all_vagas, get_stats
 from new_tabs import render_trends_tab, render_resume_tab, render_tracker_tab
+from app_features import build_market_alert, build_collection_timeseries
 
 st.set_page_config(
     page_title="TechRadar · Mercado Dev Brasil",
@@ -252,6 +254,8 @@ df = df_full[
     df_full["salario"].between(sal_range[0], sal_range[1])
 ].copy()
 
+tracker_file = str(Path(__file__).with_name("job_tracker.json"))
+
 st.markdown("""
 <div style="padding: 24px 0 16px 0;">
     <h1 style="font-size:2.4rem; font-weight:700; margin:0; background: linear-gradient(90deg, #00d4ff, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
@@ -266,6 +270,9 @@ st.markdown("""
 if df.empty:
     st.warning("Nenhum resultado para os filtros selecionados.")
     st.stop()
+
+alert_message = build_market_alert(df)
+st.info(alert_message)
 
 k1, k2, k3, k4, k5 = st.columns(5)
 
@@ -290,6 +297,32 @@ with k4:
 with k5:
     remote_pct = (df["modalidade"] == "Remoto").mean() * 100
     st.metric("% Remoto", f"{remote_pct:.0f}%", delta=f"{remote_pct - (df_full['modalidade']=='Remoto').mean()*100:+.1f}pp")
+
+st.markdown("##### 📦 Exportação")
+exp1, exp2 = st.columns([1, 3])
+with exp1:
+    export_df = df.copy()
+    export_df["coletado_em"] = export_df.get("coletado_em", "")
+    csv_bytes = export_df.to_csv(index=False).encode("utf-8-sig")
+    st.download_button(
+        label="⬇️ Baixar CSV filtrado",
+        data=csv_bytes,
+        file_name="techradar_export.csv",
+        mime="text/csv",
+    )
+with exp2:
+    st.caption("Exporta os resultados atuais dos filtros para uso em Excel/BI.")
+
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+st.markdown("##### 🗓️ Série temporal de coleta")
+ts_df = build_collection_timeseries(df_full)
+if not ts_df.empty:
+    fig_ts = px.line(ts_df, x="data", y="vagas", markers=True)
+    fig_ts.update_layout(**PLOTLY_LAYOUT, height=250, xaxis_title="Data", yaxis_title="Vagas coletadas")
+    st.plotly_chart(fig_ts, use_container_width=True)
+else:
+    st.caption("Sem histórico suficiente em `coletado_em` para série temporal.")
 
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
@@ -972,4 +1005,4 @@ with tab8:
     render_resume_tab(df_full, PLOTLY_LAYOUT)
 
 with tab9:
-    render_tracker_tab()
+    render_tracker_tab(tracker_file)
