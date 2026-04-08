@@ -1,4 +1,5 @@
 import json
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +17,14 @@ def load_tracker(path: str) -> dict:
     if not p.exists():
         return default_tracker_state()
 
-    data = json.loads(p.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return default_tracker_state()
+
+    if not isinstance(data, dict):
+        return default_tracker_state()
+
     state = default_tracker_state()
     for stage in TRACKER_STAGES:
         values = data.get(stage, [])
@@ -26,7 +34,21 @@ def load_tracker(path: str) -> dict:
 
 def save_tracker(path: str, tracker: dict) -> None:
     p = Path(path)
-    p.write_text(json.dumps(tracker, ensure_ascii=False, indent=2), encoding="utf-8")
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = json.dumps(tracker, ensure_ascii=False, indent=2)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+        dir=str(p.parent),
+        prefix=p.stem + ".",
+        suffix=".tmp",
+    ) as tmp_file:
+        tmp_file.write(payload)
+        tmp_path = Path(tmp_file.name)
+
+    tmp_path.replace(p)
 
 
 def build_market_alert(df: pd.DataFrame) -> str:

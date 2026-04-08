@@ -537,7 +537,7 @@ def _indeed_parse(card, linguagem):
         return None
 
 
-def scrape_indeed(max_pages=3):
+def scrape_catho(max_pages=3):
     rows = []
     print("\n🟡 CATHO")
     for linguagem, queries in QUERIES_SHORT:
@@ -589,13 +589,18 @@ def scrape_indeed(max_pages=3):
             print(f"     ❌ Nenhuma")
     return rows
 
+
+def scrape_indeed(max_pages=3):
+    return scrape_catho(max_pages=max_pages)
+
 def scrape_all(sources=None):
     if sources is None:
-        sources = ["gupy", "programathor", "indeed"]
+        sources = ["gupy", "programathor", "catho"]
 
     source_map = {
         "gupy":         scrape_gupy,
         "programathor": scrape_programathor,
+        "catho":        scrape_catho,
         "indeed":       scrape_indeed,
     }
 

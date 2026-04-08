@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -110,10 +112,15 @@ def fetch_all_vagas() -> pd.DataFrame:
 
 
 def _fallback_data() -> pd.DataFrame:
+    csv_path = Path(__file__).with_name("vagas_reais.csv")
 
-    if os.path.exists("vagas_reais.csv"):
+    if csv_path.exists():
         print("📂 Usando vagas_reais.csv")
-        df = pd.read_csv("vagas_reais.csv")
+        try:
+            df = pd.read_csv(csv_path)
+        except Exception as exc:
+            print(f"⚠️  Falha ao ler {csv_path.name}: {exc}")
+            return _generate_synthetic_data()
 
         required_cols = ["cargo", "empresa", "linguagem", "nivel", "salario", "modalidade", "skills"]
         for col in required_cols:

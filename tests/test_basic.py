@@ -1,7 +1,17 @@
+import pandas as pd
+
+import database
 from database import _fallback_data
 from market_trends import calculate_market_trends
 from resume_analyzer import extract_skills_from_text
-from app_features import build_market_alert, build_collection_timeseries
+from app_features import (
+    build_market_alert,
+    build_collection_timeseries,
+    default_tracker_state,
+    load_tracker,
+    save_tracker,
+)
+import scraper
 from scraper import (
     normalize_level,
     normalize_modalidade,
@@ -12,6 +22,30 @@ from scraper import (
 def test_fallback_data_nao_vazio():
     df = _fallback_data()
     assert len(df) > 0
+
+
+def test_fallback_data_prefere_csv_local(tmp_path, monkeypatch):
+    csv_path = tmp_path / "vagas_reais.csv"
+    pd.DataFrame([
+        {
+            "cargo": "Dev Python",
+            "empresa": "Acme",
+            "linguagem": "Python",
+            "nivel": "Pleno",
+            "salario": 12000,
+            "modalidade": "Remoto",
+            "skills": "Python, Docker",
+        }
+    ]).to_csv(csv_path, index=False)
+
+    monkeypatch.setattr(database, "SUPABASE_URL", "")
+    monkeypatch.setattr(database, "SUPABASE_KEY", "")
+    monkeypatch.setattr(database, "__file__", str(tmp_path / "database.py"))
+
+    df = database._fallback_data()
+    assert len(df) == 1
+    assert df.iloc[0]["empresa"] == "Acme"
+
 
 def test_fallback_colunas():
     df = _fallback_data()
@@ -52,3 +86,61 @@ def test_market_alert_and_timeseries():
     ts = build_collection_timeseries(df)
     assert not ts.empty
     assert "vagas" in ts.columns
+
+
+def test_tracker_roundtrip_and_corruption(tmp_path):
+    tracker_path = tmp_path / "job_tracker.json"
+
+    tracker = default_tracker_state()
+    tracker["🔍 Interesse"].append({"cargo": "Dev", "empresa": "Acme", "salario": "R$ 12.000"})
+    save_tracker(tracker_path, tracker)
+
+    loaded = load_tracker(tracker_path)
+    assert loaded["🔍 Interesse"][0]["cargo"] == "Dev"
+
+    tracker_path.write_text("{invalid json", encoding="utf-8")
+    assert load_tracker(tracker_path) == default_tracker_state()
+
+
+def test_scrape_all_mapeia_catho(monkeypatch):
+    fake_row = {
+        "cargo": "Dev Python",
+        "empresa": "Acme",
+        "linguagem": "Python",
+        "nivel": "Pleno",
+        "salario": 12000,
+        "modalidade": "Remoto",
+        "skills": "Python, Docker",
+        "cidade": "Brasil",
+        "url": "https://example.com/vaga/1",
+        "fonte": "catho",
+        "coletado_em": "2026-04-08T00:00:00Z",
+    }
+
+    monkeypatch.setattr(scraper, "scrape_catho", lambda max_pages=3: [fake_row])
+    df = scraper.scrape_all(["catho"])
+
+    assert len(df) == 1
+    assert df.iloc[0]["fonte"] == "catho"
+
+
+def test_scrape_all_preserva_alias_indeed(monkeypatch):
+    fake_row = {
+        "cargo": "Dev Python",
+        "empresa": "Acme",
+        "linguagem": "Python",
+        "nivel": "Pleno",
+        "salario": 12000,
+        "modalidade": "Remoto",
+        "skills": "Python, Docker",
+        "cidade": "Brasil",
+        "url": "https://example.com/vaga/2",
+        "fonte": "indeed",
+        "coletado_em": "2026-04-08T00:00:00Z",
+    }
+
+    monkeypatch.setattr(scraper, "scrape_catho", lambda max_pages=3: [fake_row])
+    df = scraper.scrape_all(["indeed"])
+
+    assert len(df) == 1
+    assert df.iloc[0]["fonte"] == "indeed"
