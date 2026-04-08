@@ -4,6 +4,7 @@ import database
 from database import _fallback_data
 from market_trends import calculate_market_trends
 from resume_analyzer import extract_skills_from_text
+from skill_catalog import SKILLS_CATALOG
 from app_features import (
     build_market_alert,
     build_collection_timeseries,
@@ -56,6 +57,11 @@ def test_extract_skills():
     skills = extract_skills_from_text("Experiência com Python, Docker e AWS")
     assert "Python" in skills
     assert "Docker" in skills
+
+
+def test_catalogo_skills_compartilhado():
+    assert "Ansible" in SKILLS_CATALOG
+    assert "OAuth" in SKILLS_CATALOG
 
 def test_market_trends():
     df = _fallback_data()
@@ -144,3 +150,32 @@ def test_scrape_all_preserva_alias_indeed(monkeypatch):
 
     assert len(df) == 1
     assert df.iloc[0]["fonte"] == "indeed"
+
+
+def test_fetch_paged_concatena_paginas():
+    class FakeResult:
+        def __init__(self, data):
+            self.data = data
+
+    class FakeQuery:
+        def __init__(self, pages):
+            self.pages = pages
+            self.call = 0
+
+        def range(self, start, end):
+            return self
+
+        def execute(self):
+            if self.call < len(self.pages):
+                data = self.pages[self.call]
+            else:
+                data = []
+            self.call += 1
+            return FakeResult(data)
+
+    pages = [
+        [{"id": 1}, {"id": 2}],
+        [{"id": 3}],
+    ]
+    df = database._fetch_paged(FakeQuery(pages), page_size=2, max_rows=10)
+    assert len(df) == 3

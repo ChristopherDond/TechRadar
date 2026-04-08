@@ -1,24 +1,8 @@
 import re
 from collections import Counter
+from skill_catalog import SKILLS_CATALOG
 
-SKILLS_DB = [
-    "Python", "JavaScript", "TypeScript", "Java", "Go", "Kotlin", "C#", "PHP",
-    "Ruby", "Swift", "Rust", "Scala", "Elixir", "Dart", "R",
-    "React", "Vue", "Angular", "Next.js", "Nuxt.js", "Svelte", "Flutter",
-    "React Native", "Tailwind CSS",
-    "Django", "FastAPI", "Flask", "Spring Boot", "Laravel", "Rails",
-    "Express", "NestJS", "ASP.NET", "Gin",
-    "Docker", "Kubernetes", "AWS", "Azure", "GCP", "Terraform",
-    "Jenkins", "GitHub Actions", "GitLab CI", "Datadog", "Grafana",
-    "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka",
-    "Elasticsearch", "DynamoDB", "RabbitMQ",
-    "Git", "CI/CD", "REST API", "GraphQL", "Microservices", "gRPC",
-    "Linux", "Agile", "Scrum", "SQL", "NoSQL",
-    "TensorFlow", "PyTorch", "scikit-learn", "pandas", "NumPy",
-    "Spark", "Airflow", "dbt", "Power BI", "Tableau",
-    "Machine Learning", "Deep Learning", "MLOps",
-    "OAuth", "JWT",
-]
+SKILLS_DB = SKILLS_CATALOG
 
 
 def extract_skills_from_text(text: str) -> list[str]:

@@ -23,6 +23,23 @@ SUPABASE_KEY = _get_env("SUPABASE_KEY")
 TABLE = "vagas"
 
 
+def _fetch_paged(query, page_size: int = 1000, max_rows: int = 20000) -> pd.DataFrame:
+    all_rows = []
+
+    for start in range(0, max_rows, page_size):
+        end = start + page_size - 1
+        result = query.range(start, end).execute()
+        batch = result.data or []
+        if not batch:
+            break
+
+        all_rows.extend(batch)
+        if len(batch) < page_size:
+            break
+
+    return pd.DataFrame(all_rows)
+
+
 def get_client():
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError(
@@ -83,8 +100,7 @@ def fetch_vagas(
         if modalidades:
             query = query.in_("modalidade", modalidades)
 
-        result = query.limit(5000).execute()
-        df = pd.DataFrame(result.data)
+        df = _fetch_paged(query)
 
         if df.empty:
             print("⚠️  Supabase retornou vazio — usando fallback")
@@ -103,8 +119,8 @@ def fetch_all_vagas() -> pd.DataFrame:
 
     try:
         client = get_client()
-        result = client.table(TABLE).select("*").limit(5000).execute()
-        df = pd.DataFrame(result.data)
+        query = client.table(TABLE).select("*")
+        df = _fetch_paged(query)
         return df if not df.empty else _fallback_data()
     except Exception as e:
         print(f"⚠️  Supabase indisponível: {e}")

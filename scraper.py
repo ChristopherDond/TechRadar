@@ -11,6 +11,7 @@ from requests import RequestException
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from database import upsert_vagas
+from skill_catalog import SKILLS_CATALOG
 
 HEADERS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -112,24 +113,7 @@ def _build_session() -> requests.Session:
 
 SESSION = _build_session()
 
-SKILLS_KEYWORDS = {
-    "Python", "JavaScript", "TypeScript", "Java", "Go", "Kotlin", "C#", "PHP",
-    "Ruby", "Swift", "Rust", "Scala", "Elixir", "Dart", "R",
-    "React", "Vue", "Angular", "Next.js", "Nuxt.js", "Svelte", "Flutter",
-    "React Native", "Tailwind CSS",
-    "Django", "FastAPI", "Flask", "Spring Boot", "Laravel", "Rails",
-    "Express", "NestJS", "ASP.NET", "Gin",
-    "Docker", "Kubernetes", "AWS", "Azure", "GCP", "Terraform",
-    "Ansible", "Jenkins", "GitHub Actions", "GitLab CI",
-    "Datadog", "Grafana", "Prometheus",
-    "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka",
-    "Elasticsearch", "DynamoDB", "Cassandra", "RabbitMQ", "Celery",
-    "Git", "CI/CD", "REST API", "GraphQL", "Microservices", "gRPC",
-    "Linux", "Agile", "Scrum", "SQL", "NoSQL",
-    "TensorFlow", "PyTorch", "scikit-learn", "pandas", "NumPy",
-    "Spark", "Airflow", "dbt", "Power BI", "Tableau",
-    "Machine Learning", "Deep Learning", "MLOps",
-}
+SKILLS_KEYWORDS = set(SKILLS_CATALOG)
 
 SAL_REFERENCE = {
     "Junior":       {"median": 4800},
